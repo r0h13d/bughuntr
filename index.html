@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BugHuntr - Bug Bounty Notes</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="node_modules/highlight.js/styles/atom-one-dark.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title"><i class="fas fa-bug"></i> BugHuntr</h1>
+        <button id="newProjectBtn" class="btn btn-icon" title="New Project">
+          <i class="fas fa-radar"></i>
+        </button>
+      </div>
+      
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search notes...">
+      </div>
+      
+      <div class="projects-list">
+        <h3>Projects</h3>
+        <ul id="projectsList"></ul>
+      </div>
+      
+      <div class="notes-list">
+        <div class="notes-header">
+          <h3>Notes</h3>
+          <button id="newNoteBtn" class="btn btn-icon" title="New Note">
+            <i class="fas fa-vial"></i>
+          </button>
+        </div>
+        <ul id="notesList"></ul>
+      </div>
+    </div>
+    
+    <div class="content-area">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="editor">
+          <i class="fas fa-code"></i> Editor
+        </button>
+        <button class="tab-btn" data-tab="preview">
+          <i class="fas fa-binoculars"></i> Preview
+        </button>
+        <div class="tab-actions">
+          <div class="template-dropdown">
+            <button id="templateBtn" class="btn">
+              <i class="fas fa-microscope"></i> Templates
+            </button>
+            <div id="templateMenu" class="template-menu">
+              <!-- Template items will be added dynamically -->
+            </div>
+          </div>
+          <button id="saveNoteBtn" class="btn primary">
+            <i class="fas fa-shield-alt"></i> Save
+          </button>
+        </div>
+      </div>
+      
+      <div class="tab-content">
+        <div id="editorTab" class="tab-pane active">
+          <div class="editor-header">
+            <input type="text" id="noteTitleInput" placeholder="Note Title">
+            <select id="projectSelect">
+              <option value="">-- Select Project --</option>
+            </select>
+            <input type="text" id="tagsInput" placeholder="Tags (comma separated)">
+          </div>
+          
+          <div class="editor-toolbar">
+            <button class="toolbar-btn" data-action="heading1" title="Heading 1">
+              <i class="fas fa-heading"></i><sub>1</sub>
+            </button>
+            <button class="toolbar-btn" data-action="heading2" title="Heading 2">
+              <i class="fas fa-heading"></i><sub>2</sub>
+            </button>
+            <button class="toolbar-btn" data-action="heading3" title="Heading 3">
+              <i class="fas fa-heading"></i><sub>3</sub>
+            </button>
+            
+            <div class="toolbar-separator"></div>
+            
+            <button class="toolbar-btn" data-action="bold" title="Bold">
+              <i class="fas fa-bold"></i>
+            </button>
+            <button class="toolbar-btn" data-action="italic" title="Italic">
+              <i class="fas fa-italic"></i>
+            </button>
+            <button class="toolbar-btn" data-action="strikethrough" title="Strikethrough">
+              <i class="fas fa-strikethrough"></i>
+            </button>
+            
+            <div class="toolbar-separator"></div>
+            
+            <button class="toolbar-btn" data-action="ul" title="Unordered List">
+              <i class="fas fa-list-ul"></i>
+            </button>
+            <button class="toolbar-btn" data-action="ol" title="Ordered List">
+              <i class="fas fa-list-ol"></i>
+            </button>
+            <button class="toolbar-btn" data-action="checklist" title="Task List">
+              <i class="fas fa-tasks"></i>
+            </button>
+            
+            <div class="toolbar-separator"></div>
+            
+            <button class="toolbar-btn" data-action="link" title="Insert Link">
+              <i class="fas fa-spider"></i>
+            </button>
+            <button class="toolbar-btn" data-action="image" title="Insert Image">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="toolbar-btn" data-action="table" title="Insert Table">
+              <i class="fas fa-network-wired"></i>
+            </button>
+            
+            <div class="toolbar-separator"></div>
+            
+            <button class="toolbar-btn" data-action="codeInline" title="Inline Code">
+              <i class="fas fa-terminal"></i>
+            </button>
+            <button class="toolbar-btn" data-action="codeBlock" title="Code Block">
+              <i class="fas fa-laptop-code"></i>
+            </button>
+            <button class="toolbar-btn" data-action="quote" title="Blockquote">
+              <i class="fas fa-comment-dots"></i>
+            </button>
+            
+            <div class="toolbar-separator"></div>
+            
+            <button class="toolbar-btn" data-action="hr" title="Horizontal Rule">
+              <i class="fas fa-minus"></i>
+            </button>
+          </div>
+          
+          <div class="editor-container">
+            <textarea id="noteContent" placeholder="Write your bug bounty notes here. Markdown supported."></textarea>
+            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+          </div>
+          
+          <div class="editor-statusbar">
+            <div class="status-info">
+              <span class="word-count" title="Word count">0 words</span>
+              <span class="char-count" title="Character count">0 characters</span>
+            </div>
+            <span id="saveStatus" class="save-status">Saved</span>
+            <div class="theme-toggle">
+              Dark Mode
+              <label class="toggle-switch">
+                <input type="checkbox" id="themeToggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div id="previewTab" class="tab-pane">
+          <div class="preview-header">
+            <h2 id="previewTitle">Note Title</h2>
+            <div class="meta">
+              <span id="previewProject">Project: None</span>
+              <div id="previewTags" class="tag-container"></div>
+            </div>
+          </div>
+          <div id="previewContent" class="preview-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Project Modal -->
+  <div id="projectModal" class="modal">
+    <div class="modal-content">
+      <h3 id="projectModalTitle">New Project</h3>
+      
+      <label class="input-label" for="projectNameInput">Project Name</label>
+      <input type="text" id="projectNameInput" placeholder="e.g., Company X Bug Bounty">
+      
+      <label class="input-label" for="projectUrlInput">Target URL</label>
+      <input type="text" id="projectUrlInput" placeholder="e.g., https://example.com">
+      
+      <label class="input-label" for="projectScopeInput">Project Scope</label>
+      <textarea id="projectScopeInput" placeholder="Define the scope of testing..."></textarea>
+      
+      <div class="modal-actions">
+        <button id="cancelProjectBtn" class="btn">Cancel</button>
+        <button id="saveProjectBtn" class="btn primary">Save Project</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Template Modal -->
+  <div id="templateModal" class="modal">
+    <div class="modal-content">
+      <h3>Save as Template</h3>
+      
+      <label class="input-label" for="templateNameInput">Template Name</label>
+      <input type="text" id="templateNameInput" placeholder="e.g., XSS Testing Checklist">
+      
+      <label class="input-label" for="templateCategoryInput">Category</label>
+      <select id="templateCategoryInput">
+        <option value="general">General</option>
+        <option value="vulnerability">Vulnerability</option>
+        <option value="recon">Reconnaissance</option>
+        <option value="reporting">Reporting</option>
+        <option value="other">Other</option>
+      </select>
+      
+      <div class="modal-actions">
+        <button id="cancelTemplateBtn" class="btn">Cancel</button>
+        <button id="saveTemplateBtn" class="btn primary">Save Template</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Link Modal -->
+  <div id="linkModal" class="modal">
+    <div class="modal-content">
+      <h3>Insert Link</h3>
+      
+      <label class="input-label" for="linkTextInput">Link Text</label>
+      <input type="text" id="linkTextInput" placeholder="e.g., Example Website">
+      
+      <label class="input-label" for="linkUrlInput">URL</label>
+      <input type="text" id="linkUrlInput" placeholder="e.g., https://example.com">
+      
+      <div class="modal-actions">
+        <button id="cancelLinkBtn" class="btn">Cancel</button>
+        <button id="insertLinkBtn" class="btn primary">Insert</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Table Modal -->
+  <div id="tableModal" class="modal">
+    <div class="modal-content">
+      <h3>Insert Table</h3>
+      
+      <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <div>
+          <label class="input-label" for="tableRowsInput">Rows</label>
+          <input type="number" id="tableRowsInput" min="1" max="10" value="3">
+        </div>
+        <div>
+          <label class="input-label" for="tableColsInput">Columns</label>
+          <input type="number" id="tableColsInput" min="1" max="10" value="3">
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button id="cancelTableBtn" class="btn">Cancel</button>
+        <button id="insertTableBtn" class="btn primary">Insert</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Status Message -->
+  <div id="statusMessage" class="status-message" style="display: none;"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

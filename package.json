@@ -1,0 +1,21 @@
+{
+    "name": "bughuntr",
+    "version": "1.0.0",
+    "description": "A cross-platform app for bug bounty hunters to track notes, experiments, and hunting processes",
+    "main": "main.js",
+    "scripts": {
+      "start": "electron .",
+      "package-mac": "electron-packager . BugHuntr --platform=darwin --arch=x64 --out=dist",
+      "package-win": "electron-packager . BugHuntr --platform=win32 --arch=x64 --out=dist"
+    },
+    "dependencies": {
+      "electron-store": "^8.1.0",
+      "marked": "^4.3.0",
+      "highlight.js": "^11.7.0",
+      "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+      "electron": "^22.3.0",
+      "electron-packager": "^17.1.1"
+    }
+  }
