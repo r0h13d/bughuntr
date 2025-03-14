@@ -3,28 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BugHuntr - Bug Bounty Notes</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:">  <title>BugHuntr - Bug Bounty Notes</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="node_modules/highlight.js/styles/atom-one-dark.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+  integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" 
+  crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
 <body>
   <div class="app-container">
     <div class="sidebar">
       <div class="sidebar-header">
         <h1 class="app-title"><i class="fas fa-bug"></i> BugHuntr</h1>
-        <button id="newProjectBtn" class="btn btn-icon" title="New Project">
-          <i class="fas fa-radar"></i>
-        </button>
+        <div class="header-actions">
+          <button id="shortcutsBtn" class="btn btn-icon" title="Keyboard Shortcuts">
+            <i class="fas fa-keyboard"></i>
+          </button>
+          <button id="newProjectBtn" class="btn btn-icon" title="New Project">
+            <i class="fas fa-radar"></i>
+          </button>
+        </div>
       </div>
       
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Search notes...">
+        <input type="text" id="searchInput" placeholder="Search notes..." aria-label="Search notes">
       </div>
       
       <div class="projects-list">
         <h3>Projects</h3>
-        <ul id="projectsList"></ul>
+        <ul id="projectsList" role="list" aria-label="Projects list"></ul>
+      </div>
+      
+      <!-- Add new tag filters section -->
+      <div class="tags-section">
+        <div class="tags-header">
+          <h3>Filter by Tags</h3>
+          <button id="manageTagsBtn" class="btn btn-icon" title="Manage Tags">
+            <i class="fas fa-tags"></i>
+          </button>
+        </div>
+        <div id="tagFilterContainer" class="tag-filter-container"></div>
       </div>
       
       <div class="notes-list">
@@ -34,16 +52,16 @@
             <i class="fas fa-vial"></i>
           </button>
         </div>
-        <ul id="notesList"></ul>
+        <ul id="notesList" role="list" aria-label="Notes list"></ul>
       </div>
     </div>
     
     <div class="content-area">
       <div class="tabs">
-        <button class="tab-btn active" data-tab="editor">
+        <button class="tab-btn active" data-tab="editor" role="tab" aria-selected="true" aria-controls="editorTab">
           <i class="fas fa-code"></i> Editor
         </button>
-        <button class="tab-btn" data-tab="preview">
+        <button class="tab-btn" data-tab="preview" role="tab" aria-selected="false" aria-controls="previewTab">
           <i class="fas fa-binoculars"></i> Preview
         </button>
         <div class="tab-actions">
@@ -51,7 +69,7 @@
             <button id="templateBtn" class="btn">
               <i class="fas fa-microscope"></i> Templates
             </button>
-            <div id="templateMenu" class="template-menu">
+            <div id="templateMenu" class="template-menu" role="menu">
               <!-- Template items will be added dynamically -->
             </div>
           </div>
@@ -62,16 +80,19 @@
       </div>
       
       <div class="tab-content">
-        <div id="editorTab" class="tab-pane active">
+        <div id="editorTab" class="tab-pane active" role="tabpanel" aria-labelledby="editor-tab">
           <div class="editor-header">
-            <input type="text" id="noteTitleInput" placeholder="Note Title">
-            <select id="projectSelect">
+            <input type="text" id="noteTitleInput" placeholder="Note Title" aria-label="Note Title">
+            <select id="projectSelect" aria-label="Select Project">
               <option value="">-- Select Project --</option>
             </select>
-            <input type="text" id="tagsInput" placeholder="Tags (comma separated)">
+            <div class="tags-input-container">
+              <input type="text" id="tagsInput" placeholder="Tags (comma separated)" aria-label="Tags">
+              <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+            </div>
           </div>
           
-          <div class="editor-toolbar">
+          <div class="editor-toolbar" role="toolbar" aria-label="Formatting tools">
             <button class="toolbar-btn" data-action="heading1" title="Heading 1">
               <i class="fas fa-heading"></i><sub>1</sub>
             </button>
@@ -138,8 +159,7 @@
           </div>
           
           <div class="editor-container">
-            <textarea id="noteContent" placeholder="Write your bug bounty notes here. Markdown supported."></textarea>
-            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+            <textarea id="noteContent" placeholder="Write your bug bounty notes here. Markdown supported." aria-label="Note content"></textarea>
           </div>
           
           <div class="editor-statusbar">
@@ -151,14 +171,14 @@
             <div class="theme-toggle">
               Dark Mode
               <label class="toggle-switch">
-                <input type="checkbox" id="themeToggle">
+                <input type="checkbox" id="themeToggle" aria-label="Toggle dark mode">
                 <span class="toggle-slider"></span>
               </label>
             </div>
           </div>
         </div>
         
-        <div id="previewTab" class="tab-pane">
+        <div id="previewTab" class="tab-pane" role="tabpanel" aria-labelledby="preview-tab">
           <div class="preview-header">
             <h2 id="previewTitle">Note Title</h2>
             <div class="meta">
@@ -173,7 +193,7 @@
   </div>
   
   <!-- Project Modal -->
-  <div id="projectModal" class="modal">
+  <div id="projectModal" class="modal" role="dialog" aria-labelledby="projectModalTitle" aria-hidden="true">
     <div class="modal-content">
       <h3 id="projectModalTitle">New Project</h3>
       
@@ -194,9 +214,9 @@
   </div>
   
   <!-- Template Modal -->
-  <div id="templateModal" class="modal">
+  <div id="templateModal" class="modal" role="dialog" aria-labelledby="templateModalTitle" aria-hidden="true">
     <div class="modal-content">
-      <h3>Save as Template</h3>
+      <h3 id="templateModalTitle">Save as Template</h3>
       
       <label class="input-label" for="templateNameInput">Template Name</label>
       <input type="text" id="templateNameInput" placeholder="e.g., XSS Testing Checklist">
@@ -218,9 +238,9 @@
   </div>
   
   <!-- Link Modal -->
-  <div id="linkModal" class="modal">
+  <div id="linkModal" class="modal" role="dialog" aria-labelledby="linkModalTitle" aria-hidden="true">
     <div class="modal-content">
-      <h3>Insert Link</h3>
+      <h3 id="linkModalTitle">Insert Link</h3>
       
       <label class="input-label" for="linkTextInput">Link Text</label>
       <input type="text" id="linkTextInput" placeholder="e.g., Example Website">
@@ -236,9 +256,9 @@
   </div>
   
   <!-- Table Modal -->
-  <div id="tableModal" class="modal">
+  <div id="tableModal" class="modal" role="dialog" aria-labelledby="tableModalTitle" aria-hidden="true">
     <div class="modal-content">
-      <h3>Insert Table</h3>
+      <h3 id="tableModalTitle">Insert Table</h3>
       
       <div style="display: flex; gap: 10px; margin-bottom: 15px;">
         <div>
@@ -258,8 +278,31 @@
     </div>
   </div>
   
+  <!-- Manage Tags Modal -->
+  <div id="tagsModal" class="modal" role="dialog" aria-labelledby="tagsModalTitle" aria-hidden="true">
+    <div class="modal-content">
+      <h3 id="tagsModalTitle">Manage Tags</h3>
+      
+      <div class="tags-list" id="managementTagsList">
+        <!-- Tags will be added dynamically -->
+      </div>
+      
+      <div class="tags-actions">
+        <label class="input-label" for="newTagInput">Create New Tag</label>
+        <div class="new-tag-input-group">
+          <input type="text" id="newTagInput" placeholder="Enter new tag name">
+          <button id="addNewTagBtn" class="btn primary">Add</button>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button id="closeTagsBtn" class="btn primary">Close</button>
+      </div>
+    </div>
+  </div>
+  
   <!-- Status Message -->
-  <div id="statusMessage" class="status-message" style="display: none;"></div>
+  <div id="statusMessage" class="status-message" style="display: none;" role="alert"></div>
 
   <script src="renderer.js"></script>
 </body>

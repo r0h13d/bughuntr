@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const Store = require('electron-store');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
 
 // Setup persistent storage
 const store = new Store();
@@ -88,6 +89,58 @@ function createWindow() {
         { role: 'zoomout' },
         { type: 'separator' },
         { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'Manage Tags',
+          click() {
+            mainWindow.webContents.send('show-tags-modal');
+          }
+        },
+        {
+          label: 'Keyboard Shortcuts',
+          accelerator: 'CmdOrCtrl+/',
+          click() {
+            mainWindow.webContents.send('show-shortcuts-modal');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Generate Report',
+          click() {
+            mainWindow.webContents.send('generate-report');
+          }
+        }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'About BugHuntr',
+          click() {
+            dialog.showMessageBox(mainWindow, {
+              title: 'About BugHuntr',
+              message: 'BugHuntr v1.0.0',
+              detail: 'A cross-platform app for bug bounty hunters to track notes, experiments, and hunting processes.\n\nDeveloped with ❤️ for the bug bounty community.',
+              buttons: ['OK']
+            });
+          }
+        },
+        {
+          label: 'View License',
+          click() {
+            dialog.showMessageBox(mainWindow, {
+              title: 'License',
+              message: 'MIT License',
+              detail: 'Copyright (c) 2023 BugHuntr\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
+              buttons: ['OK']
+            });
+          }
+        }
       ]
     }
   ];
@@ -179,4 +232,42 @@ ipcMain.on('save-imported-data', (event, data) => {
   store.set('projects', data.projects);
   store.set('notes', data.notes);
   event.reply('data-imported');
+});
+
+// Get all unique tags
+ipcMain.on('get-tags-stats', (event) => {
+  const notes = store.get('notes') || [];
+  const tagStats = {};
+  
+  // Count occurrences of each tag
+  notes.forEach(note => {
+    if (note.tags && Array.isArray(note.tags)) {
+      note.tags.forEach(tag => {
+        if (tag.trim()) {
+          const normalizedTag = tag.trim();
+          tagStats[normalizedTag] = (tagStats[normalizedTag] || 0) + 1;
+        }
+      });
+    }
+  });
+  
+  event.reply('tags-stats', tagStats);
+});
+
+// Generate markdown report
+ipcMain.on('export-markdown-report', (event, { projectId, notes, projectName }) => {
+  dialog.showSaveDialog(mainWindow, {
+    title: 'Save Markdown Report',
+    defaultPath: `${projectName || 'BugHuntr'}-Report.md`,
+    filters: [
+      { name: 'Markdown Files', extensions: ['md'] }
+    ]
+  }).then(result => {
+    if (!result.canceled && result.filePath) {
+      fs.writeFileSync(result.filePath, notes.join('\n\n---\n\n'));
+      event.reply('report-exported', { success: true, path: result.filePath });
+    }
+  }).catch(err => {
+    event.reply('report-exported', { success: false, error: err.message });
+  });
 });
