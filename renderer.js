@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 const marked = require('marked');
 const hljs = require('highlight.js');
+const { defaultTemplates, templateCategories } = require('./templates');
 
 // Setup markdown renderer with syntax highlighting
 marked.setOptions({
@@ -75,184 +76,167 @@ let currentTheme = 'light';
 let selectionStart = 0;
 let selectionEnd = 0;
 
-// Template categories
-const templateCategories = {
-  'general': 'General',
-  'vulnerability': 'Vulnerability Types',
-  'recon': 'Reconnaissance',
-  'reporting': 'Reporting',
-  'other': 'Other'
-};
-
-// Default templates for bug bounty hunting
-const defaultTemplates = [
-  {
-    id: 'template-recon',
-    name: 'Reconnaissance Checklist',
-    category: 'recon',
-    content: `# Reconnaissance Checklist
-
-## Subdomain Enumeration
-- [ ] Sublist3r
-- [ ] Amass
-- [ ] Subfinder
-- [ ] Certificate Transparency logs
-- [ ] DNS brute forcing
-
-## Port Scanning
-- [ ] Nmap basic scan
-- [ ] Nmap full port scan
-- [ ] Service version identification
-
-## Content Discovery
-- [ ] Robots.txt analysis
-- [ ] Directory bruteforcing
-- [ ] JavaScript file analysis
-- [ ] Wayback machine data
-
-## Technology Stack Identification
-- [ ] Wappalyzer
-- [ ] BuiltWith
-- [ ] HTTP header analysis
-
-## Additional Enumeration
-- [ ] Emails & employee information
-- [ ] GitHub repositories
-- [ ] S3 buckets
-- [ ] API endpoints
-`
-  },
-  {
-    id: 'template-xss',
-    name: 'XSS Testing',
-    category: 'vulnerability',
-    content: `# Cross-Site Scripting (XSS) Testing
-
-## Test Environment
-- **Target URL**: 
-- **Parameters tested**: 
-- **Browser**: 
-
-## Testing Payloads
-
-### Basic Payloads
-\`\`\`
-<script>alert(1)</script>
-<img src=x onerror=alert(1)>
-<svg onload=alert(1)>
-\`\`\`
-
-### Filter Bypass Attempts
-\`\`\`
-<img src=x onerror="&#97;&#108;&#101;&#114;&#116;(1)">
-<script>\\u0061\\u006C\\u0065\\u0072\\u0074(1)</script>
-\`\`\`
-
-## Results
-- [ ] Reflected XSS found
-- [ ] Stored XSS found
-- [ ] DOM-based XSS found
-
-## Notes & Observations
-*Document your findings here*
-
-## Exploitation PoC
-\`\`\`
-// Add your proof of concept code here
-\`\`\`
-
-## Potential Impact
-*Describe the impact of this vulnerability*
-
-`
-  },
-  {
-    id: 'template-sqli',
-    name: 'SQL Injection Testing',
-    category: 'vulnerability',
-    content: `# SQL Injection Testing
-
-## Test Environment
-- **Target URL**: 
-- **Parameters tested**: 
-- **Database type (if known)**: 
-
-## Testing Payloads
-
-### Detection Payloads
-\`\`\`
-'
-"
-\\'
-1 OR 1=1
-1' OR '1'='1
-\`\`\`
-
-### Time-based Payloads
-\`\`\`
-1' AND (SELECT SLEEP(5))--
-1' AND SLEEP(5)--
-\`\`\`
-
-## Results
-- [ ] Error-based SQLi found
-- [ ] Time-based SQLi found
-- [ ] Boolean-based SQLi found
-- [ ] Union-based SQLi found
-
-## Notes & Observations
-*Document your findings here*
-
-## Exploitation PoC
-\`\`\`
-// Add your proof of concept code here
-\`\`\`
-
-## Potential Impact
-*Describe the impact of this vulnerability*
-
-`
-  },
-  {
-    id: 'template-report',
-    name: 'Vulnerability Report',
-    category: 'reporting',
-    content: `# Vulnerability Report
-
-## Issue Summary
-**Vulnerability Type**: 
-**Severity**: 
-**CVSS Score**: 
-
-## Vulnerability Details
-### Description
-*Provide a clear, concise description of the vulnerability*
-
-### Steps to Reproduce
-1. 
-2. 
-3. 
-
-### Proof of Concept
-\`\`\`
-// Add your proof of concept code here
-\`\`\`
-
-## Impact
-*Describe what an attacker could accomplish by exploiting this vulnerability*
-
-## Remediation Recommendations
-*Provide specific recommendations for fixing the vulnerability*
-
-## Additional Information
-*Any other details that might be relevant*
-
-`
-  }
-];
-
 // Initialize app
+// Add this function to renderer.js, just before the init() function
+
+// Debug function to check templates
+function debugTemplates() {
+  console.log("All templates:", allTemplates);
+  console.log("Template categories:", templateCategories);
+  
+  // Group templates by category for debugging
+  const groupedTemplates = {};
+  allTemplates.forEach(template => {
+    const category = template.category || 'other';
+    if (!groupedTemplates[category]) {
+      groupedTemplates[category] = [];
+    }
+    groupedTemplates[category].push(template);
+  });
+  
+  console.log("Grouped templates:", groupedTemplates);
+}
+
+// Modify the createDefaultTemplates function to ensure templates are properly loaded
+function createDefaultTemplates() {
+  // Get existing templates
+  const existingTemplates = JSON.parse(localStorage.getItem('templates') || '[]');
+  
+  if (existingTemplates.length === 0) {
+    console.log("No templates found in localStorage, initializing with defaults");
+    // No templates exist, use all defaults
+    allTemplates = defaultTemplates;
+    localStorage.setItem('templates', JSON.stringify(allTemplates));
+  } else {
+    console.log(`Found ${existingTemplates.length} templates in localStorage`);
+    
+    // Check if we need to add any new templates that didn't exist before
+    const existingIds = existingTemplates.map(t => t.id);
+    const newTemplates = defaultTemplates.filter(t => !existingIds.includes(t.id));
+    
+    if (newTemplates.length > 0) {
+      console.log(`Adding ${newTemplates.length} new default templates`);
+      allTemplates = [...existingTemplates, ...newTemplates];
+      localStorage.setItem('templates', JSON.stringify(allTemplates));
+    } else {
+      allTemplates = existingTemplates;
+    }
+  }
+  
+  // Debug the templates
+  debugTemplates();
+  
+  // Render the template menu
+  renderTemplateMenu();
+}
+
+// Update the renderTemplateMenu function to ensure all templates are displayed
+function renderTemplateMenu() {
+  templateMenu.innerHTML = '';
+
+  // Add these style properties to make the menu scrollable
+  templateMenu.style.maxHeight = '400px'; // Set a maximum height
+  templateMenu.style.overflowY = 'auto';  // Enable vertical scrolling
+  templateMenu.style.overflowX = 'hidden'; // Prevent horizontal scrolling
+  
+  
+  console.log("Rendering template menu with", allTemplates.length, "templates");
+  
+  // Group templates by category
+  const groupedTemplates = {};
+  
+  allTemplates.forEach(template => {
+    const category = template.category || 'other';
+    if (!groupedTemplates[category]) {
+      groupedTemplates[category] = [];
+    }
+    groupedTemplates[category].push(template);
+  });
+  
+  console.log("Templates grouped by category:", Object.keys(groupedTemplates));
+  
+  // Create category headers and items
+  Object.keys(templateCategories).forEach(category => {
+    if (!groupedTemplates[category] || groupedTemplates[category].length === 0) {
+      console.log(`No templates for category: ${category}`);
+      return;
+    }
+    
+    console.log(`Rendering category ${category} with ${groupedTemplates[category].length} templates`);
+    
+    const categoryHeader = document.createElement('div');
+    categoryHeader.className = 'template-category';
+    categoryHeader.textContent = templateCategories[category];
+    categoryHeader.style.padding = '8px 15px';
+    categoryHeader.style.fontWeight = 'bold';
+    categoryHeader.style.fontSize = '0.8rem';
+    categoryHeader.style.color = 'var(--text-muted)';
+    categoryHeader.style.textTransform = 'uppercase';
+    
+    templateMenu.appendChild(categoryHeader);
+    
+    groupedTemplates[category].forEach(template => {
+      const item = document.createElement('div');
+      item.className = 'template-item';
+      item.textContent = template.name;
+      
+      item.addEventListener('click', () => {
+        applyTemplate(template);
+        templateMenu.classList.remove('show');
+      });
+      
+      templateMenu.appendChild(item);
+    });
+  });
+  
+  // Add separator
+  const separator = document.createElement('div');
+  separator.className = 'context-menu-separator';
+  templateMenu.appendChild(separator);
+  
+  // Add "Save current as template" option
+  const saveTemplateItem = document.createElement('div');
+  saveTemplateItem.className = 'template-item';
+  saveTemplateItem.innerHTML = '<i class="fas fa-save"></i> Save current as template';
+  saveTemplateItem.addEventListener('click', () => {
+    showTemplateModal();
+    templateMenu.classList.remove('show');
+  });
+  templateMenu.appendChild(saveTemplateItem);
+}
+
+// Replace the loadTemplates function with this version
+function loadTemplates() {
+  console.log("Loading templates from localStorage");
+  try {
+    const templates = JSON.parse(localStorage.getItem('templates') || '[]');
+    console.log(`Loaded ${templates.length} templates from localStorage`);
+    
+    // Validate templates have required fields
+    const validTemplates = templates.filter(template => 
+      template && template.id && template.name && template.content && template.category
+    );
+    
+    if (validTemplates.length !== templates.length) {
+      console.warn(`Found ${templates.length - validTemplates.length} invalid templates`);
+    }
+    
+    allTemplates = validTemplates;
+    renderTemplateMenu();
+  } catch (error) {
+    console.error("Error loading templates:", error);
+    // If there was an error loading templates, reset to defaults
+    localStorage.removeItem('templates');
+    allTemplates = [];
+    createDefaultTemplates();
+  }
+}
+
+// Modify the init function to clear localStorage for templates (one-time fix)
 function init() {
+  // Clear templates from localStorage to reset (remove this after first run)
+  localStorage.removeItem('templates');
+  
   loadProjects();
   loadNotes();
   loadTemplates();
