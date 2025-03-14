@@ -1322,3 +1322,17 @@ input:checked+.toggle-slider:before {
   font-weight: 900;
   content: attr(data-fa-icon);
 }
+/* Fix for sidebar button icons - ensure they're visible in dark mode */
+.sidebar .btn-icon i,
+.sidebar-header .btn-icon i,
+.notes-header .btn-icon i {
+  color: var(--text-light);
+}
+
+/* Also ensure all Font Awesome icons in sidebar have proper contrast */
+.sidebar .fas,
+.sidebar .far,
+.sidebar .fa,
+.sidebar .fab {
+  color: var(--text-light);
+}

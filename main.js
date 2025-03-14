@@ -1,11 +1,8 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
-const Store = require('electron-store');
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
-
-// Setup persistent storage
-const store = new Store();
+const db = require('./sqlite-storage'); // Path to your sqlite-storage.js file
+const { migrateToSqlite } = require('./migrate-data');
 
 let mainWindow;
 
@@ -90,58 +87,6 @@ function createWindow() {
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
-    },
-    {
-      label: 'Tools',
-      submenu: [
-        {
-          label: 'Manage Tags',
-          click() {
-            mainWindow.webContents.send('show-tags-modal');
-          }
-        },
-        {
-          label: 'Keyboard Shortcuts',
-          accelerator: 'CmdOrCtrl+/',
-          click() {
-            mainWindow.webContents.send('show-shortcuts-modal');
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Generate Report',
-          click() {
-            mainWindow.webContents.send('generate-report');
-          }
-        }
-      ]
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'About BugHuntr',
-          click() {
-            dialog.showMessageBox(mainWindow, {
-              title: 'About BugHuntr',
-              message: 'BugHuntr v1.0.0',
-              detail: 'A cross-platform app for bug bounty hunters to track notes, experiments, and hunting processes.\n\nDeveloped with ❤️ for the bug bounty community.',
-              buttons: ['OK']
-            });
-          }
-        },
-        {
-          label: 'View License',
-          click() {
-            dialog.showMessageBox(mainWindow, {
-              title: 'License',
-              message: 'MIT License',
-              detail: 'Copyright (c) 2023 BugHuntr\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.',
-              buttons: ['OK']
-            });
-          }
-        }
-      ]
     }
   ];
   
@@ -149,7 +94,27 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 }
 
-app.on('ready', createWindow);
+app.on('ready', async () => {
+  // Run data migration first
+  try {
+    await migrateToSqlite();
+    console.log('Migration completed successfully');
+  } catch (err) {
+    console.error('Migration error:', err);
+    
+    // Show error dialog if in development mode
+    if (process.env.NODE_ENV === 'development') {
+      const { dialog } = require('electron');
+      dialog.showErrorBox(
+        'Migration Error',
+        `An error occurred during data migration:\n${err.message}\n\nThe application will continue, but some data may not be available.`
+      );
+    }
+  }
+  
+  // Create the window whether migration succeeded or failed
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -163,111 +128,160 @@ app.on('activate', () => {
   }
 });
 
+// Close the database connection when app is about to quit
+app.on('will-quit', () => {
+  db.close();
+});
+
 // IPC handlers for note operations
-ipcMain.on('get-all-projects', (event) => {
-  const projects = store.get('projects') || [];
-  event.reply('all-projects', projects);
-});
-
-ipcMain.on('get-all-notes', (event) => {
-  const notes = store.get('notes') || [];
-  event.reply('all-notes', notes);
-});
-
-ipcMain.on('save-note', (event, noteData) => {
-  let notes = store.get('notes') || [];
-  
-  // If note has an id, update existing note, otherwise create new
-  if (noteData.id) {
-    notes = notes.map(note => note.id === noteData.id ? noteData : note);
-  } else {
-    noteData.id = uuidv4();
-    noteData.createdAt = new Date().toISOString();
-    notes.push(noteData);
+ipcMain.on('get-all-projects', async (event) => {
+  try {
+    const projects = await db.getProjects();
+    event.reply('all-projects', projects);
+  } catch (error) {
+    console.error('Error getting projects:', error);
+    event.reply('all-projects', []);
   }
-  
-  noteData.updatedAt = new Date().toISOString();
-  store.set('notes', notes);
-  event.reply('note-saved', noteData);
 });
 
-ipcMain.on('save-project', (event, projectData) => {
-  let projects = store.get('projects') || [];
-  
-  if (projectData.id) {
-    projects = projects.map(project => project.id === projectData.id ? projectData : project);
-  } else {
-    projectData.id = uuidv4();
-    projectData.createdAt = new Date().toISOString();
-    projects.push(projectData);
+ipcMain.on('get-all-notes', async (event) => {
+  try {
+    const notes = await db.getNotes();
+    event.reply('all-notes', notes);
+  } catch (error) {
+    console.error('Error getting notes:', error);
+    event.reply('all-notes', []);
   }
-  
-  projectData.updatedAt = new Date().toISOString();
-  store.set('projects', projects);
-  event.reply('project-saved', projectData);
 });
 
-ipcMain.on('delete-note', (event, noteId) => {
-  let notes = store.get('notes') || [];
-  notes = notes.filter(note => note.id !== noteId);
-  store.set('notes', notes);
-  event.reply('note-deleted', noteId);
+ipcMain.on('save-note', async (event, noteData) => {
+  try {
+    if (!noteData.id) {
+      noteData.id = uuidv4();
+      noteData.createdAt = new Date().toISOString();
+    }
+    
+    noteData.updatedAt = new Date().toISOString();
+    await db.saveNote(noteData);
+    event.reply('note-saved', noteData);
+  } catch (error) {
+    console.error('Error saving note:', error);
+    event.reply('error', { message: 'Failed to save note' });
+  }
 });
 
-ipcMain.on('delete-project', (event, projectId) => {
-  let projects = store.get('projects') || [];
-  projects = projects.filter(project => project.id !== projectId);
-  store.set('projects', projects);
-  
-  // Also remove all notes associated with this project
-  let notes = store.get('notes') || [];
-  notes = notes.filter(note => note.projectId !== projectId);
-  store.set('notes', notes);
-  
-  event.reply('project-deleted', projectId);
+ipcMain.on('save-project', async (event, projectData) => {
+  try {
+    if (!projectData.id) {
+      projectData.id = uuidv4();
+      projectData.createdAt = new Date().toISOString();
+    }
+    
+    projectData.updatedAt = new Date().toISOString();
+    await db.saveProject(projectData);
+    event.reply('project-saved', projectData);
+  } catch (error) {
+    console.error('Error saving project:', error);
+    event.reply('error', { message: 'Failed to save project' });
+  }
+});
+
+ipcMain.on('delete-note', async (event, noteId) => {
+  try {
+    await db.deleteNote(noteId);
+    event.reply('note-deleted', noteId);
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    event.reply('error', { message: 'Failed to delete note' });
+  }
+});
+
+ipcMain.on('delete-project', async (event, projectId) => {
+  try {
+    await db.deleteProject(projectId);
+    event.reply('project-deleted', projectId);
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    event.reply('error', { message: 'Failed to delete project' });
+  }
 });
 
 // Import data handler
-ipcMain.on('save-imported-data', (event, data) => {
-  store.set('projects', data.projects);
-  store.set('notes', data.notes);
-  event.reply('data-imported');
+ipcMain.on('save-imported-data', async (event, data) => {
+  try {
+    await db.importData(data);
+    event.reply('data-imported');
+  } catch (error) {
+    console.error('Error importing data:', error);
+    event.reply('error', { message: 'Failed to import data' });
+  }
 });
 
-// Get all unique tags
-ipcMain.on('get-tags-stats', (event) => {
-  const notes = store.get('notes') || [];
-  const tagStats = {};
-  
-  // Count occurrences of each tag
-  notes.forEach(note => {
-    if (note.tags && Array.isArray(note.tags)) {
-      note.tags.forEach(tag => {
-        if (tag.trim()) {
-          const normalizedTag = tag.trim();
-          tagStats[normalizedTag] = (tagStats[normalizedTag] || 0) + 1;
-        }
-      });
+// Add handler for saving all notes at once (for tag management)
+ipcMain.on('save-all-notes', async (event, notes) => {
+  try {
+    // Begin transaction
+    await db.run('BEGIN TRANSACTION');
+    
+    for (const note of notes) {
+      note.updatedAt = new Date().toISOString();
+      await db.saveNote(note);
     }
-  });
-  
-  event.reply('tags-stats', tagStats);
+    
+    // Commit transaction
+    await db.run('COMMIT');
+    
+    event.reply('all-notes-saved');
+  } catch (error) {
+    // Rollback on error
+    await db.run('ROLLBACK');
+    console.error('Error saving all notes:', error);
+    event.reply('error', { message: 'Failed to save notes' });
+  }
 });
 
-// Generate markdown report
-ipcMain.on('export-markdown-report', (event, { projectId, notes, projectName }) => {
-  dialog.showSaveDialog(mainWindow, {
-    title: 'Save Markdown Report',
-    defaultPath: `${projectName || 'BugHuntr'}-Report.md`,
-    filters: [
-      { name: 'Markdown Files', extensions: ['md'] }
-    ]
-  }).then(result => {
-    if (!result.canceled && result.filePath) {
-      fs.writeFileSync(result.filePath, notes.join('\n\n---\n\n'));
-      event.reply('report-exported', { success: true, path: result.filePath });
+// Get all tags (for tag management)
+ipcMain.on('get-all-tags', async (event) => {
+  try {
+    const tags = await db.all('SELECT name FROM tags ORDER BY name');
+    event.reply('all-tags', tags.map(t => t.name));
+  } catch (error) {
+    console.error('Error getting tags:', error);
+    event.reply('all-tags', []);
+  }
+});
+
+// Add template handlers
+ipcMain.on('get-all-templates', async (event) => {
+  try {
+    const templates = await db.getTemplates();
+    event.reply('all-templates', templates);
+  } catch (error) {
+    console.error('Error getting templates:', error);
+    event.reply('all-templates', []);
+  }
+});
+
+ipcMain.on('save-template', async (event, templateData) => {
+  try {
+    if (!templateData.id) {
+      templateData.id = `template-${Date.now()}`;
     }
-  }).catch(err => {
-    event.reply('report-exported', { success: false, error: err.message });
-  });
+    
+    await db.saveTemplate(templateData);
+    event.reply('template-saved', templateData);
+  } catch (error) {
+    console.error('Error saving template:', error);
+    event.reply('error', { message: 'Failed to save template' });
+  }
+});
+
+ipcMain.on('delete-template', async (event, templateId) => {
+  try {
+    await db.deleteTemplate(templateId);
+    event.reply('template-deleted', templateId);
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    event.reply('error', { message: 'Failed to delete template' });
+  }
 });

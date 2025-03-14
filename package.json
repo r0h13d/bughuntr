@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "dompurify": "^3.2.4",
-    "electron-store": "^8.1.0",
     "highlight.js": "^11.7.0",
     "marked": "^4.3.0",
+    "sqlite3": "^5.1.7",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
